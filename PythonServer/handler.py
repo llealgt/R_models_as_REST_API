@@ -4,14 +4,18 @@ Doesn't handle POST requests.
 """
 import SocketServer
 import SimpleHTTPServer
+import subprocess
 
 PORT = 8080
 
 def run_model1(par1,par2):
     """ sample model with 2 params"""
 
-    prediction = int(par1) + int(par2)
-    return '{body:{params:{param1:1,param2:2},prediction:'+str(prediction)+'}}'
+    model_params = [str(par1),str(par2)]
+    path_to_script = "/media/luis/media/devongt/GrupoTRT/RModels/model1/run_model.R"
+    execution_command = ["Rscript",path_to_script] + model_params
+    prediction = subprocess.check_output(execution_command,universal_newlines = True)
+    return '{body:{params:{param1:3,param2:2},prediction:'+str(prediction)+'}}'
 
 class CustomHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -24,7 +28,7 @@ class CustomHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type','text/html')
             self.end_headers()
-            self.wfile.write(run_model1(1,2)) #call sample function here
+            self.wfile.write(run_model1(3,2)) #call sample function here
             return
         else:
             #serve files, and directory listings by following self.path from
