@@ -7,9 +7,10 @@ import SimpleHTTPServer
 import subprocess
 from urlparse import urlparse,parse_qs
 import csv
+from os import environ
 
-PORT = 8080
-BASE_DIRECTORY = "/media/luis/media/devongt/GrupoTRT"
+PORT = 8081
+BASE_DIRECTORY = environ.get("R_MODELS_BASE_DIRECTORY")
 R_EXECUTION_COMMAND = "Rscript"
 R_SCRIPTS_FILE_NAME = "run_model.R"
 R_PARAMETERS_FILE_NAME = "params.config"
