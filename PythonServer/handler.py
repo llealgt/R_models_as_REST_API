@@ -1,6 +1,13 @@
 """
-Serves files out of its current directory.
-Doesn't handle POST requests.
+Serves R models through GET requests
+- Structure: 1 folder  per R model
+- Parent folder specified under env variable R_MODELS_BASE_DIRECTORY
+- Maps request url to model folder, for example for request:
+    http://<host>:<port>/RModels/model1 is mapped to folder 
+    $R_MODELS_BASE_DIRECTORY/RModels/model1
+- Every model directory  should have 2 files:
+    run_model.R: contains the code to run the R model, last line should be cat(<result>)
+    params.config:comma separated ordered list of how the r script expects the parameters 
 """
 import SocketServer
 import SimpleHTTPServer
@@ -9,22 +16,14 @@ from urlparse import urlparse,parse_qs
 import csv
 from os import environ
 
-PORT = 8081
+PORT = 8080
 BASE_DIRECTORY = environ.get("R_MODELS_BASE_DIRECTORY")
 R_EXECUTION_COMMAND = "Rscript"
 R_SCRIPTS_FILE_NAME = "run_model.R"
 R_PARAMETERS_FILE_NAME = "params.config"
 
-def run_model1(par1,par2):
-    """ sample model with 2 params"""
 
-    model_params = [str(par1),str(par2)]
-    path_to_script = BASE_DIRECTORY + "/RModels/model1" + "/"+R_SCRIPTS_FILE_NAME
-    execution_command = [R_EXECUTION_COMMAND,path_to_script] + model_params
-    prediction = subprocess.check_output(execution_command,universal_newlines = True)
-    return '{body:{params:{param1:3,param2:2},prediction:'+str(prediction)+'}}'
-
-def run_model2(model_url,parameters_list):
+def run_model(model_url,parameters_list):
     model_param_names = get_configuration_for_resource(model_url)
     model_param_values = list()
     
@@ -36,7 +35,7 @@ def run_model2(model_url,parameters_list):
     
     prediction = subprocess.check_output(execution_command,universal_newlines = True)
     
-    return '{body:{params:{param1:3,param2:2},prediction:'+str(prediction)+'}}'
+    return prediction
 
 
 def get_configuration_for_resource(model_url):
@@ -50,35 +49,34 @@ def get_configuration_for_resource(model_url):
     
 class CustomHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     
-        
+    #TODO: add  excepcion and error handling (and return status depending on that)   
     def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type','text/html')
-        self.end_headers()
+        
         request_url = self.path
         parameters_dictionary = parse_qs(urlparse(request_url).query)
         parameters_list = parameters_dictionary.values() #returns a list of lists
         min_size = min(map(len,parameters_list))
         
+        predictions =  list()
         for i in range(min_size):
             parameters_dict = dict()
+            prediction_dict = dict()
             
             for parameter in parameters_dictionary:
                 parameters_dict[parameter] = parameters_dictionary[parameter][i]
+                prediction_dict[parameter] = parameters_dictionary[parameter][i]
                 
-            response = run_model2(urlparse(request_url).path,parameters_dict)
-            self.wfile.write(response+";;;;")
-        
-        #self.wfile.write(parameters_list)
-        #response = run_model2(urlparse(request_url).path,parameters_list)
-        #self.wfile.write(response)
-        #Sample values in self for URL: http://localhost:8080/jsxmlrpc-0.3/
-        #self.path  '/jsxmlrpc-0.3/'
-        #self.raw_requestline   'GET /jsxmlrpc-0.3/ HTTP/1.1rn'
-        #self.client_address    ('127.0.0.1', 3727)
+            response = run_model(urlparse(request_url).path,parameters_dict)
+            prediction_dict["prediction"] = response
+            predictions.append(prediction_dict)
+            
+        self.send_response(200)
+        self.send_header('Content-type','application/json')
+        self.end_headers()
+        self.wfile.write({"predictions":predictions})
         
 
 httpd = SocketServer.ThreadingTCPServer(('localhost', PORT),CustomHandler)
 
-print "serving at port", PORT
+print "Serving at port", PORT
 httpd.serve_forever()
